@@ -1,0 +1,69 @@
+{
+  "expo": {
+    "name": "Bus-Tracking-System",
+    "slug": "bus-tracking-system",
+    "scheme": "bus-tracking-system",
+    "version": "1.0.1",
+    "orientation": "portrait",
+    "icon": "./assets/home.png",
+    "userInterfaceStyle": "light",
+    "newArchEnabled": true,
+    "platforms": ["android", "ios"],
+    "splash": {
+      "image": "./assets/home.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.jpquintana.smarthouseholdassistant",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/home.png",
+        "backgroundColor": "#ffffff"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "package": "com.jpquintana.smarthouseholdassistant",
+      "versionCode": 2
+    },
+    "updates": {
+      "enabled": true,
+      "checkAutomatically": "ON_LOAD",
+      "fallbackToCacheTimeout": 0,
+      "url": "https://u.expo.dev/320cf899-7a86-4541-b1b3-839f46de816a"
+    },
+    "web": {
+      "bundler": "metro",
+      "favicon": "./assets/home.png"
+    },
+    "plugins": [
+      "expo-router",
+      "expo-secure-store",
+      "expo-web-browser",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow $(PRODUCT_NAME) to access your camera",
+          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone",
+          "recordAudioAndroid": true
+        }
+      ]
+    ],
+    "extra": {
+      // "apiUrl": "https://ex-en.tech",
+      "apiUrl": "http://192.168.1.110:8000",
+      "router": {},
+      "eas": {
+        "projectId": "320cf899-7a86-4541-b1b3-839f46de816a"
+      }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    }
+  }
+}
