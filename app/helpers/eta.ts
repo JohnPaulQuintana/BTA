@@ -19,3 +19,13 @@ export function formatETA(minutes:number) {
   if (minutes < 1) return "< 1 min";
   return `${Math.round(minutes)} min`;
 }
+
+export function calculateETA(distanceKm: number, speedMs: number) {
+  if (!speedMs || speedMs <= 0) return "Not moving";
+
+  const speedKmh = speedMs * 3.6; // convert m/s → km/h
+  const hours = distanceKm / speedKmh;
+  const minutes = hours * 60;
+
+  return formatETA(minutes);
+}

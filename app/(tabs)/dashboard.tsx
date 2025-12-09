@@ -15,13 +15,13 @@ import MapView, { Marker, Polyline } from "react-native-maps";
 import { BUSES, MOCK_STOPS, MOCK_BUSES } from "../services/busServer.mock"; // Keep for fallback
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import { formatETA, haversineDistance } from "../helpers/eta";
+import { calculateETA, formatETA, haversineDistance } from "../helpers/eta";
 import { StopMarker } from "../components/StopMarker";
 import { generateBusColors } from "../helpers/busColor";
 import { useAddress } from "../hooks/useAddress";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-// const API_URL = process.env.EXPO_PUBLIC_API_URL; 
+// const API_URL = process.env.EXPO_PUBLIC_API_URL;
 import Constants from "expo-constants";
 import { AddressDisplay } from "../components/AddressDisplay";
 import { NearestStopAddress } from "../components/NearestStopAddress";
@@ -39,7 +39,9 @@ export default function DashboardScreen() {
   const [allBuses, setAllBuses] = useState<Array<any>>([]); // From /api/buses
   const [stops, setStops] = useState<Array<any>>([]); // From /api/stops
   const [activeBuses, setActiveBuses] = useState<{ [key: number]: any }>({}); // Loaded bus data
-  const [loadingBuses, setLoadingBuses] = useState<{ [key: number]: boolean }>({});
+  const [loadingBuses, setLoadingBuses] = useState<{ [key: number]: boolean }>(
+    {}
+  );
   const [initialLoading, setInitialLoading] = useState(true);
   const [apiError, setApiError] = useState<string | null>(null);
 
@@ -54,71 +56,73 @@ export default function DashboardScreen() {
   const fetchBusList = useCallback(async () => {
     try {
       setApiError(null);
-      console.log('Fetching bus list from:', `${API_BASE_URL}/api/buses`);
-      
+      console.log("Fetching bus list from:", `${API_BASE_URL}/api/buses`);
+
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
-      
+
       const response = await fetch(`${API_BASE_URL}/api/buses`, {
         signal: controller.signal,
         headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        }
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
       });
-      
+
       clearTimeout(timeoutId);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
-      
+
       const data = await response.json();
-      console.log('Bus list response:', data);
-      
+      console.log("Bus list response:", data);
+
       // Your controller returns the data directly as array
       let busesArray: any[] = [];
-      
+
       if (Array.isArray(data)) {
         // Direct array response from your controller
-        busesArray = data.map(bus => ({
+        busesArray = data.map((bus) => ({
           id: bus.id,
           bus_name: bus.bus_name,
           driver_name: bus.driver_name,
           license_plate: bus.license_plate,
-          is_active: bus.is_active
+          is_active: bus.is_active,
         }));
       } else if (data.data && Array.isArray(data.data)) {
         // Laravel API Resource format
         busesArray = data.data;
       } else {
-        throw new Error('Invalid response format from API');
+        throw new Error("Invalid response format from API");
       }
-      
+
       setAllBuses(busesArray);
-      
+
       // Auto-select first active bus if none selected
       if (busesArray.length > 0 && !activeBusId && !userSelectedBus.current) {
-        const firstBus = busesArray.find(bus => bus.is_active !== false) || busesArray[0];
+        const firstBus =
+          busesArray.find((bus) => bus.is_active !== false) || busesArray[0];
         if (firstBus) {
           setActiveBusId(firstBus.id);
         }
       }
-      
     } catch (error: any) {
-      console.error('Error fetching bus list from API:', error);
+      console.error("Error fetching bus list from API:", error);
       setApiError(`Failed to load buses: ${error.message}`);
-      
+
       // Fallback to mock data
-      console.log('Using mock data as fallback');
-      setAllBuses(BUSES.map(bus => ({
-        id: bus.id,
-        bus_name: bus.bus_name,
-        driver_name: null,
-        license_plate: null,
-        is_active: true
-      })));
-      
+      console.log("Using mock data as fallback");
+      setAllBuses(
+        BUSES.map((bus) => ({
+          id: bus.id,
+          bus_name: bus.bus_name,
+          driver_name: null,
+          license_plate: null,
+          is_active: true,
+        }))
+      );
+
       if (BUSES.length > 0 && !activeBusId && !userSelectedBus.current) {
         setActiveBusId(BUSES[0].id);
       }
@@ -132,230 +136,251 @@ export default function DashboardScreen() {
     try {
       const response = await fetch(`${API_BASE_URL}/api/stops`, {
         headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        }
+          Accept: "application/json",
+          "Content-Type": "application/json",
+        },
       });
-      
+
       if (response.ok) {
         const data = await response.json();
-        
+
         // Your controller should return array directly
         let stopsArray: any[] = [];
-        
+
         if (Array.isArray(data)) {
-          stopsArray = data.map(stop => ({
+          stopsArray = data.map((stop) => ({
             id: stop.id,
             name: stop.name,
             lat: parseFloat(stop.latitude),
-            long: parseFloat(stop.longitude)
+            long: parseFloat(stop.longitude),
           }));
         } else if (data.data && Array.isArray(data.data)) {
           stopsArray = data.data.map((stop: any) => ({
             id: stop.id,
             name: stop.name,
             lat: parseFloat(stop.latitude),
-            long: parseFloat(stop.longitude)
+            long: parseFloat(stop.longitude),
           }));
         } else {
-          throw new Error('Invalid stops response format');
+          throw new Error("Invalid stops response format");
         }
-        
+
         setStops(stopsArray);
       } else {
         setStops(MOCK_STOPS);
       }
     } catch (error) {
-      console.error('Error fetching stops:', error);
+      console.error("Error fetching stops:", error);
       setStops(MOCK_STOPS);
     }
   }, []);
 
   // Fetch detailed tracking data for a specific bus - UPDATED
-const fetchBusData = useCallback(async (busId: number, forceRefresh = false) => {
-  // Don't fetch if already loading
-  if (loadingBuses[busId] && !forceRefresh) return;
-  
-  try {
-    setLoadingBuses(prev => ({ ...prev, [busId]: true }));
-    setApiError(null);
-    
-    console.log(`Fetching tracking data for bus ${busId} from API`);
-    
-    // Try Laravel API endpoint first - using your /tracking endpoint
-    const response = await fetch(`${API_BASE_URL}/api/buses/${busId}/tracking`, {
-      headers: {
-        'Accept': 'application/json',
-        'Content-Type': 'application/json',
-      }
-    });
-    
-    let busData;
-    let fromApi = false;
-    
-    if (response.ok) {
-      const data = await response.json();
-      console.log(`RAW API response for bus ${busId}:`, JSON.stringify(data, null, 2));
-      console.log(`API response for bus ${busId}:`, data);
-      
-      // Your controller returns {success, data, message} format
-      if (data.success && data.data) {
-        busData = data.data;
-        fromApi = true;
-      } else {
-        throw new Error('Invalid API response format');
-      }
-    } else {
-      // If API fails, use basic bus info from allBuses
-      const busInfo = allBuses.find(b => b.id === busId);
-      busData = busInfo || { id: busId };
-    }
-    
-    // Get the path_travelled array from API response
-    const pathTravelled = busData.path_travelled || busData.path || [];
-    
-    // Determine current position: either from API's current_position OR the last path point
-    let currentPosition;
-    
-    if (busData.current_position && busData.current_position.lat && busData.current_position.long) {
-      // Use the current_position from API if available and has valid coordinates
-      currentPosition = {
-        lat: parseFloat(busData.current_position.lat) || 14.683015,
-        long: parseFloat(busData.current_position.long) || 120.538018,
-        speed: parseFloat(busData.current_position.speed) || 0,
-        passenger_count: busData.current_position.passenger_count || 0
-      };
-    } else if (pathTravelled.length > 0) {
-      // Otherwise, use the last point from path_travelled
-      const lastPoint = pathTravelled[pathTravelled.length - 1];
-      currentPosition = {
-        lat: parseFloat(lastPoint.lat || lastPoint.latitude || 14.683015),
-        long: parseFloat(lastPoint.long || lastPoint.longitude || 120.538018),
-        speed: parseFloat(lastPoint.speed || 0),
-        passenger_count: lastPoint.passenger_count || lastPoint.total_passenger || 0
-      };
-    } else {
-      // Fallback if no data
-      currentPosition = {
-        lat: busData.latitude || 14.683015,
-        long: busData.longitude || 120.538018,
-        speed: busData.speed || 0,
-        passenger_count: busData.passenger_count || 0
-      };
-    }
-    
-    // Normalize path points to ensure consistent structure
-    const normalizedPathTravelled = pathTravelled.map(point => ({
-      lat: parseFloat(point.lat || point.latitude || 14.683015),
-      long: parseFloat(point.long || point.longitude || 120.538018),
-      speed: parseFloat(point.speed || 0),
-      passenger_count: point.passenger_count || point.total_passenger || 0
-    }));
-    
-    // Handle null created_at safely
-    const safeLastUpdated = busData.updated_at || busData.last_updated || new Date().toISOString();
-    
-    const processedBus = {
-      id: busData.id || busId,
-      bus_name: busData.bus_name || `Bus ${busId}`,
-      driver_name: busData.driver_name || "Not assigned",
-      license_plate: busData.license_plate || "N/A",
-      pathTravelled: normalizedPathTravelled,
-      currentPosition: currentPosition,
-      isActive: busData.is_active !== false,
-      lastUpdated: safeLastUpdated,
-      fromApi: fromApi,
-      error: false,
-      message: 'Data loaded successfully'
-    };
-    
-    console.log(`Processed bus ${busId}:`, {
-      id: processedBus.id,
-      pathTravelledCount: processedBus.pathTravelled.length,
-      currentPosition: processedBus.currentPosition,
-      lastUpdated: processedBus.lastUpdated,
-      hasCurrentPositionFromApi: !!busData.current_position,
-      usedLastPathPoint: !busData.current_position && pathTravelled.length > 0
-    });
-    setActiveBuses(prev => ({
-      ...prev,
-      [busId]: processedBus
-    }));
-    
-  } catch (error) {
-    console.error(`Error fetching API data for bus ${busId}:`, error);
-    
-    // Fallback to mock data
-    const mockBusData = MOCK_BUSES.find(bus => bus.id === busId);
-    
-    if (mockBusData) {
-      const pathTravelled = mockBusData.path || [];
-      
-      // Normalize mock path points
-      const normalizedPathTravelled = pathTravelled.map(point => ({
-        lat: point.lat || 14.683015,
-        long: point.long || 120.538018,
-        speed: point.speed || 0,
-        passenger_count: point.total_passenger || 0
-      }));
-      
-      // Use the last path point as current position for mock data too
-      const currentPosition = normalizedPathTravelled.length > 0 ? 
-        normalizedPathTravelled[normalizedPathTravelled.length - 1] : {
-          lat: 14.683015,
-          long: 120.538018,
-          speed: 0,
-          passenger_count: 0
-        };
-      
-      const processedBus = {
-        id: mockBusData.id,
-        bus_name: mockBusData.bus_name,
-        driver_name: "Driver " + mockBusData.id,
-        license_plate: "ABC-" + mockBusData.id,
-        pathTravelled: normalizedPathTravelled,
-        currentPosition: currentPosition,
-        isActive: true,
-        lastUpdated: new Date().toISOString(),
-        fromApi: false,
-        error: false,
-        message: 'Using mock data'
-      };
-      
-      setActiveBuses(prev => ({
-        ...prev,
-        [busId]: processedBus
-      }));
-    } else {
-      // Create offline bus entry
-      const basicBus = allBuses.find(bus => bus.id === busId);
-      
-      setActiveBuses(prev => ({
-        ...prev,
-        [busId]: {
-          id: busId,
-          bus_name: basicBus?.bus_name || `Bus ${busId}`,
-          driver_name: basicBus?.driver_name || "Not assigned",
-          license_plate: basicBus?.license_plate || "N/A",
-          pathTravelled: [],
-          currentPosition: {
-            lat: 14.683015,
-            long: 120.538018,
-            speed: 0,
-            passenger_count: 0
-          },
-          isActive: false,
-          lastUpdated: new Date().toISOString(),
-          error: true,
-          message: 'No tracking data available',
-          fromApi: false
+  const fetchBusData = useCallback(
+    async (busId: number, forceRefresh = false) => {
+      // Don't fetch if already loading
+      if (loadingBuses[busId] && !forceRefresh) return;
+
+      try {
+        setLoadingBuses((prev) => ({ ...prev, [busId]: true }));
+        setApiError(null);
+
+        console.log(`Fetching tracking data for bus ${busId} from API`);
+
+        // Try Laravel API endpoint first - using your /tracking endpoint
+        const response = await fetch(
+          `${API_BASE_URL}/api/buses/${busId}/tracking`,
+          {
+            headers: {
+              Accept: "application/json",
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        let busData;
+        let fromApi = false;
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log(
+            `RAW API response for bus ${busId}:`,
+            JSON.stringify(data, null, 2)
+          );
+          console.log(`API response for bus ${busId}:`, data);
+
+          // Your controller returns {success, data, message} format
+          if (data.success && data.data) {
+            busData = data.data;
+            fromApi = true;
+          } else {
+            throw new Error("Invalid API response format");
+          }
+        } else {
+          // If API fails, use basic bus info from allBuses
+          const busInfo = allBuses.find((b) => b.id === busId);
+          busData = busInfo || { id: busId };
         }
-      }));
-    }
-  } finally {
-    setLoadingBuses(prev => ({ ...prev, [busId]: false }));
-  }
-}, [allBuses]);
+
+        // Get the path_travelled array from API response
+        const pathTravelled = busData.path_travelled || busData.path || [];
+
+        // Determine current position: either from API's current_position OR the last path point
+        let currentPosition;
+
+        if (
+          busData.current_position &&
+          busData.current_position.lat &&
+          busData.current_position.long
+        ) {
+          // Use the current_position from API if available and has valid coordinates
+          currentPosition = {
+            lat: parseFloat(busData.current_position.lat) || 14.683015,
+            long: parseFloat(busData.current_position.long) || 120.538018,
+            speed: parseFloat(busData.current_position.speed) || 0,
+            passenger_count: busData.current_position.passenger_count || 0,
+          };
+        } else if (pathTravelled.length > 0) {
+          // Otherwise, use the last point from path_travelled
+          const lastPoint = pathTravelled[pathTravelled.length - 1];
+          currentPosition = {
+            lat: parseFloat(lastPoint.lat || lastPoint.latitude || 14.683015),
+            long: parseFloat(
+              lastPoint.long || lastPoint.longitude || 120.538018
+            ),
+            speed: parseFloat(lastPoint.speed || 0),
+            passenger_count:
+              lastPoint.passenger_count || lastPoint.total_passenger || 0,
+          };
+        } else {
+          // Fallback if no data
+          currentPosition = {
+            lat: busData.latitude || 14.683015,
+            long: busData.longitude || 120.538018,
+            speed: busData.speed || 0,
+            passenger_count: busData.passenger_count || 0,
+          };
+        }
+
+        // Normalize path points to ensure consistent structure
+        const normalizedPathTravelled = pathTravelled.map((point) => ({
+          lat: parseFloat(point.lat || point.latitude || 14.683015),
+          long: parseFloat(point.long || point.longitude || 120.538018),
+          speed: parseFloat(point.speed || 0),
+          passenger_count: point.passenger_count || point.total_passenger || 0,
+        }));
+
+        // Handle null created_at safely
+        const safeLastUpdated =
+          busData.updated_at ||
+          busData.last_updated ||
+          new Date().toISOString();
+
+        const processedBus = {
+          id: busData.id || busId,
+          bus_name: busData.bus_name || `Bus ${busId}`,
+          driver_name: busData.driver_name || "Not assigned",
+          license_plate: busData.license_plate || "N/A",
+          pathTravelled: normalizedPathTravelled,
+          currentPosition: currentPosition,
+          isActive: busData.is_active !== false,
+          lastUpdated: safeLastUpdated,
+          fromApi: fromApi,
+          error: false,
+          message: "Data loaded successfully",
+        };
+
+        console.log(`Processed bus ${busId}:`, {
+          id: processedBus.id,
+          pathTravelledCount: processedBus.pathTravelled.length,
+          currentPosition: processedBus.currentPosition,
+          lastUpdated: processedBus.lastUpdated,
+          hasCurrentPositionFromApi: !!busData.current_position,
+          usedLastPathPoint:
+            !busData.current_position && pathTravelled.length > 0,
+        });
+        setActiveBuses((prev) => ({
+          ...prev,
+          [busId]: processedBus,
+        }));
+      } catch (error) {
+        console.error(`Error fetching API data for bus ${busId}:`, error);
+
+        // Fallback to mock data
+        const mockBusData = MOCK_BUSES.find((bus) => bus.id === busId);
+
+        if (mockBusData) {
+          const pathTravelled = mockBusData.path || [];
+
+          // Normalize mock path points
+          const normalizedPathTravelled = pathTravelled.map((point) => ({
+            lat: point.lat || 14.683015,
+            long: point.long || 120.538018,
+            speed: point.speed || 0,
+            passenger_count: point.total_passenger || 0,
+          }));
+
+          // Use the last path point as current position for mock data too
+          const currentPosition =
+            normalizedPathTravelled.length > 0
+              ? normalizedPathTravelled[normalizedPathTravelled.length - 1]
+              : {
+                  lat: 14.683015,
+                  long: 120.538018,
+                  speed: 0,
+                  passenger_count: 0,
+                };
+
+          const processedBus = {
+            id: mockBusData.id,
+            bus_name: mockBusData.bus_name,
+            driver_name: "Driver " + mockBusData.id,
+            license_plate: "ABC-" + mockBusData.id,
+            pathTravelled: normalizedPathTravelled,
+            currentPosition: currentPosition,
+            isActive: true,
+            lastUpdated: new Date().toISOString(),
+            fromApi: false,
+            error: false,
+            message: "Using mock data",
+          };
+
+          setActiveBuses((prev) => ({
+            ...prev,
+            [busId]: processedBus,
+          }));
+        } else {
+          // Create offline bus entry
+          const basicBus = allBuses.find((bus) => bus.id === busId);
+
+          setActiveBuses((prev) => ({
+            ...prev,
+            [busId]: {
+              id: busId,
+              bus_name: basicBus?.bus_name || `Bus ${busId}`,
+              driver_name: basicBus?.driver_name || "Not assigned",
+              license_plate: basicBus?.license_plate || "N/A",
+              pathTravelled: [],
+              currentPosition: {
+                lat: 14.683015,
+                long: 120.538018,
+                speed: 0,
+                passenger_count: 0,
+              },
+              isActive: false,
+              lastUpdated: new Date().toISOString(),
+              error: true,
+              message: "No tracking data available",
+              fromApi: false,
+            },
+          }));
+        }
+      } finally {
+        setLoadingBuses((prev) => ({ ...prev, [busId]: false }));
+      }
+    },
+    [allBuses]
+  );
 
   // Initial data loading
   useEffect(() => {
@@ -373,34 +398,37 @@ const fetchBusData = useCallback(async (busId: number, forceRefresh = false) => 
   // Poll active buses for updates
   useEffect(() => {
     const interval = setInterval(() => {
-      Object.keys(activeBuses).forEach(busId => {
+      Object.keys(activeBuses).forEach((busId) => {
         const bus = activeBuses[parseInt(busId)];
         if (bus?.isActive && !bus.error) {
           fetchBusData(parseInt(busId), true); // Force refresh
         }
       });
     }, 10000); // Poll every 10 seconds
-    
+
     return () => clearInterval(interval);
   }, [activeBuses, fetchBusData]);
 
   // Handle bus selection
-  const handleBusSelect = useCallback((busId: number) => {
-    setShouldAutoCenter(true);
-    setActiveBusId(busId);
-    userSelectedBus.current = true;
-    
-    // Fetch data for selected bus if not already loaded or needs refresh
-    if (!activeBuses[busId] || activeBuses[busId]?.error) {
-      fetchBusData(busId);
-    }
-  }, [activeBuses, fetchBusData]);
+  const handleBusSelect = useCallback(
+    (busId: number) => {
+      setShouldAutoCenter(true);
+      setActiveBusId(busId);
+      userSelectedBus.current = true;
+
+      // Fetch data for selected bus if not already loaded or needs refresh
+      if (!activeBuses[busId] || activeBuses[busId]?.error) {
+        fetchBusData(busId);
+      }
+    },
+    [activeBuses, fetchBusData]
+  );
 
   // Auto-center when bus data is available
   useEffect(() => {
     if (!shouldAutoCenter) return;
     if (!activeBusId || !mapRef.current || !isMapReady) return;
-    
+
     const bus = activeBuses[activeBusId];
     if (!bus || !bus.currentPosition || !bus.isActive) return;
 
@@ -417,7 +445,7 @@ const fetchBusData = useCallback(async (busId: number, forceRefresh = false) => 
 
   const handleCenterOnBus = useCallback(() => {
     if (!activeBusId || !mapRef.current) return;
-    
+
     const bus = activeBuses[activeBusId];
     if (!bus || !bus.currentPosition || !bus.isActive) return;
 
@@ -438,7 +466,7 @@ const fetchBusData = useCallback(async (busId: number, forceRefresh = false) => 
     setApiError(null);
     fetchBusList();
     fetchStops();
-    
+
     if (activeBusId) {
       fetchBusData(activeBusId, true);
     }
@@ -452,9 +480,7 @@ const fetchBusData = useCallback(async (busId: number, forceRefresh = false) => 
           <Text style={styles.loadingText}>
             {initialLoading ? "Connecting to server..." : "Loading..."}
           </Text>
-          {apiError && (
-            <Text style={styles.errorTextSmall}>{apiError}</Text>
-          )}
+          {apiError && <Text style={styles.errorTextSmall}>{apiError}</Text>}
         </View>
       </View>
     );
@@ -473,28 +499,25 @@ const fetchBusData = useCallback(async (busId: number, forceRefresh = false) => 
   let etaToNextStop = "N/A";
   // let nearestStopAddress = "N/A"
 
-  if (activeBus && activeBus.isActive && stops.length > 0) {
-    const { lat, long, speed } = activeBus.currentPosition || {};
-    
-    if (lat && long) {
-      let minDist = Infinity;
-      stops.forEach((stop) => {
-        const dist = haversineDistance(lat, long, stop.lat, stop.long);
-        if (dist < minDist) {
-          minDist = dist;
-          nearestStop = stop;
-        }
-      });
+if (activeBus && activeBus.isActive && stops.length > 0) {
+  const { lat, long, speed } = activeBus.currentPosition || {};
 
-      if (speed && speed > 0) {
-        const hours = minDist / speed;
-        const minutes = hours * 60;
-        etaToNextStop = formatETA(minutes);
-      } else {
-        etaToNextStop = "Not moving";
+  if (lat && long) {
+    let minDist = Infinity;
+
+    stops.forEach((stop) => {
+      const dist = haversineDistance(lat, long, stop.lat, stop.long);
+      if (dist < minDist) {
+        minDist = dist;
+        nearestStop = stop;
       }
-    }
+    });
+
+    etaToNextStop = calculateETA(minDist, speed);
   }
+}
+
+
 
   const initialRegion = {
     latitude: 14.683015,
@@ -521,7 +544,10 @@ const fetchBusData = useCallback(async (busId: number, forceRefresh = false) => 
           </View>
           <View style={styles.headerRight}>
             {apiError && (
-              <TouchableOpacity onPress={handleRefresh} style={styles.refreshButton}>
+              <TouchableOpacity
+                onPress={handleRefresh}
+                style={styles.refreshButton}
+              >
                 <Ionicons name="refresh" size={20} color="#ef4444" />
               </TouchableOpacity>
             )}
@@ -546,7 +572,8 @@ const fetchBusData = useCallback(async (busId: number, forceRefresh = false) => 
         {/* DEBUG INFO */}
         <View style={styles.debugInfo}>
           <Text style={styles.debugText}>
-            Buses: {allBuses.length} | Stops: {stops.length} | Active: {activeBusId}
+            Buses: {allBuses.length} | Stops: {stops.length} | Active:{" "}
+            {activeBusId}
           </Text>
         </View>
 
@@ -584,15 +611,15 @@ const fetchBusData = useCallback(async (busId: number, forceRefresh = false) => 
                   disabled={isLoadingBus}
                 >
                   <View
-                      style={[
-                        styles.segmentDot,
-                        { 
-                          backgroundColor: color,
-                          opacity: isBusLoaded && !isBusActive ? 0.3 : 1
-                        }
-                      ]}
-                    />
-                  
+                    style={[
+                      styles.segmentDot,
+                      {
+                        backgroundColor: color,
+                        opacity: isBusLoaded && !isBusActive ? 0.3 : 1,
+                      },
+                    ]}
+                  />
+
                   <Text
                     style={[
                       styles.segmentText,
@@ -651,7 +678,7 @@ const fetchBusData = useCallback(async (busId: number, forceRefresh = false) => 
             {activeBus?.isActive && activeBus?.pathTravelled?.length > 1 && (
               <Polyline
                 coordinates={activeBus.pathTravelled
-                  .filter(p => p.lat && p.long)
+                  .filter((p) => p.lat && p.long)
                   .map((p) => ({
                     latitude: p.lat,
                     longitude: p.long,
@@ -700,10 +727,7 @@ const fetchBusData = useCallback(async (busId: number, forceRefresh = false) => 
           {/* LOCATE BUTTON */}
           {activeBus?.isActive && (
             <View style={styles.fabContainer}>
-              <TouchableOpacity
-                style={styles.fab}
-                onPress={handleCenterOnBus}
-              >
+              <TouchableOpacity style={styles.fab} onPress={handleCenterOnBus}>
                 <Ionicons name="locate" size={22} color="white" />
               </TouchableOpacity>
             </View>
@@ -760,7 +784,7 @@ const fetchBusData = useCallback(async (busId: number, forceRefresh = false) => 
                     </View>
                   ) : (
                     <View style={styles.offlineBadge}>
-                      <Ionicons name="wifi-off" size={12} color="#9ca3af" />
+                      {/* <Ionicons name="wifi-off" size={12} color="#9ca3af" /> */}
                       <Text style={styles.offlineStatusText}>Offline</Text>
                     </View>
                   )}
@@ -790,7 +814,11 @@ const fetchBusData = useCallback(async (busId: number, forceRefresh = false) => 
 
                     <View style={styles.metricItem}>
                       <View style={styles.metricIcon}>
-                        <Ionicons name="speedometer" size={24} color="#3b82f6" />
+                        <Ionicons
+                          name="speedometer"
+                          size={24}
+                          color="#3b82f6"
+                        />
                       </View>
                       <Text style={styles.metricValue}>
                         {activeBus.currentPosition?.speed || "0"} km/h
@@ -825,31 +853,36 @@ const fetchBusData = useCallback(async (busId: number, forceRefresh = false) => 
                       {activeBus.currentPosition?.long?.toFixed(6) || "0.000000"}
                     </Text> */}
                     <View>
-                       <AddressDisplay 
+                      <AddressDisplay
                         lat={activeBus.currentPosition?.lat || null}
                         long={activeBus.currentPosition?.long || null}
-                       />
+                      />
                     </View>
                     <Text style={styles.lastUpdated}>
-                      Updated: {new Date(activeBus.lastUpdated).toLocaleTimeString()}
+                      Updated:{" "}
+                      {new Date(activeBus.lastUpdated).toLocaleTimeString()}
                     </Text>
                   </View>
                 </>
               ) : (
                 <View style={styles.offlineContainer}>
-                  <Ionicons 
-                    name={activeBus.error ? "warning" : "wifi-off"} 
-                    size={48} 
-                    color={activeBus.error ? "#ef4444" : "#6b7280"} 
+                  <Ionicons
+                    name={activeBus.error ? "warning" : "wifi-off"}
+                    size={48}
+                    color={activeBus.error ? "#ef4444" : "#6b7280"}
                   />
-                  <Text style={[
-                    styles.offlineText,
-                    activeBus.error && styles.errorText
-                  ]}>
+                  <Text
+                    style={[
+                      styles.offlineText,
+                      activeBus.error && styles.errorText,
+                    ]}
+                  >
                     {activeBus.error ? "Connection Error" : "Bus is offline"}
                   </Text>
                   <Text style={styles.offlineSubtext}>
-                    {activeBus.error ? activeBus.message || "Failed to load data" : "No tracking data available"}
+                    {activeBus.error
+                      ? activeBus.message || "Failed to load data"
+                      : "No tracking data available"}
                   </Text>
                   <TouchableOpacity
                     style={styles.retryButton}
@@ -888,8 +921,9 @@ const fetchBusData = useCallback(async (busId: number, forceRefresh = false) => 
                   <Text style={styles.minimalBusStats}>
                     {activeBus.isActive ? (
                       <>
-                        {activeBus.currentPosition?.passenger_count || 0} passengers
-                        • {activeBus.currentPosition?.speed || "0"} km/h
+                        {activeBus.currentPosition?.passenger_count || 0}{" "}
+                        passengers • {activeBus.currentPosition?.speed || "0"}{" "}
+                        km/h
                       </>
                     ) : (
                       "No tracking data"
@@ -937,9 +971,9 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   debugText: {
-    color: '#6b7280',
+    color: "#6b7280",
     fontSize: 11,
-    fontFamily: 'monospace',
+    fontFamily: "monospace",
   },
   minimalHeader: {
     flexDirection: "row",
@@ -987,19 +1021,19 @@ const styles = StyleSheet.create({
     backgroundColor: "#ef4444",
   },
   apiStatusContainer: {
-    backgroundColor: 'rgba(239, 68, 68, 0.1)',
+    backgroundColor: "rgba(239, 68, 68, 0.1)",
     marginHorizontal: 20,
     marginBottom: 8,
     padding: 8,
     borderRadius: 8,
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     borderWidth: 1,
-    borderColor: 'rgba(239, 68, 68, 0.2)',
+    borderColor: "rgba(239, 68, 68, 0.2)",
     gap: 8,
   },
   apiStatusText: {
-    color: '#ef4444',
+    color: "#ef4444",
     fontSize: 12,
     flex: 1,
   },
@@ -1036,11 +1070,11 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   errorButton: {
-    borderColor: '#ef4444',
+    borderColor: "#ef4444",
   },
   mockDataButton: {
-    borderColor: '#9ca3af',
-    borderStyle: 'dashed',
+    borderColor: "#9ca3af",
+    borderStyle: "dashed",
   },
   segmentDot: {
     width: 8,
@@ -1066,17 +1100,17 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   errorTextStyle: {
-    color: '#ef4444',
+    color: "#ef4444",
   },
   mockDataText: {
-    color: '#9ca3af',
-    fontStyle: 'italic',
+    color: "#9ca3af",
+    fontStyle: "italic",
   },
   errorTextSmall: {
-    color: '#ef4444',
+    color: "#ef4444",
     marginTop: 8,
     fontSize: 12,
-    textAlign: 'center',
+    textAlign: "center",
   },
   mapContainer: {
     flex: 1,
@@ -1120,12 +1154,14 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   activeBusMarker: {
+    width: 50,
+    height: 50,
     alignItems: "center",
     justifyContent: "center",
   },
   busIconContainer: {
-    width: 56,
-    height: 56,
+    width: 50,
+    height: 50,
     borderRadius: 28,
     alignItems: "center",
     justifyContent: "center",
@@ -1139,22 +1175,22 @@ const styles = StyleSheet.create({
     zIndex: 2,
   },
   mockDataBadge: {
-    position: 'absolute',
+    position: "absolute",
     top: -5,
     right: -5,
-    backgroundColor: '#9ca3af',
+    backgroundColor: "#9ca3af",
     width: 20,
     height: 20,
     borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     borderWidth: 2,
-    borderColor: 'white',
+    borderColor: "white",
   },
   mockDataBadgeText: {
-    color: 'white',
+    color: "white",
     fontSize: 10,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   fabContainer: {
     position: "absolute",
@@ -1274,7 +1310,7 @@ const styles = StyleSheet.create({
     gap: 4,
   },
   offlineStatusText: {
-    color: "#9ca3af",
+    color: "#AA2B1D",
     fontSize: 12,
     fontWeight: "600",
   },
@@ -1345,14 +1381,14 @@ const styles = StyleSheet.create({
   mockDataLabel: {
     color: "#9ca3af",
     fontSize: 12,
-    fontStyle: 'italic',
+    fontStyle: "italic",
   },
- 
+
   lastUpdated: {
     color: "#9ca3af",
     fontSize: 12,
     marginTop: 4,
-    fontStyle: 'italic',
+    fontStyle: "italic",
   },
   offlineContainer: {
     alignItems: "center",
@@ -1366,13 +1402,13 @@ const styles = StyleSheet.create({
     marginTop: 16,
   },
   errorText: {
-    color: '#ef4444',
+    color: "#ef4444",
   },
   offlineSubtext: {
     color: "#6b7280",
     fontSize: 14,
     marginTop: 4,
-    textAlign: 'center',
+    textAlign: "center",
   },
   retryButton: {
     backgroundColor: "#22c55e",
