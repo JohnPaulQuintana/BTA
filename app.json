@@ -60,8 +60,8 @@
       ]
     ],
     "extra": {
-      // "apiUrl": "https://ex-en.tech",
-      "apiUrl": "http://192.168.1.110:8000",
+      "apiUrl": "https://ex-en.tech",
+      // "apiUrl": "http://192.168.1.110:8000",
       "router": {},
       "eas": {
         "projectId": "320cf899-7a86-4541-b1b3-839f46de816a"
