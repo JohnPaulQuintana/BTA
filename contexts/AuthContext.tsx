@@ -7,6 +7,10 @@ const API_URL = Constants.expoConfig?.extra?.apiUrl as string;
 interface User {
   name: string;
   email: string;
+  role_id: number;
+  created_at: string;
+  updated_at: string;
+  email_verified_at: string;
 }
 
 interface AuthContextType {

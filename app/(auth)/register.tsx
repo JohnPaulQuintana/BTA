@@ -13,7 +13,7 @@ import {
 import { useAuth } from "../../contexts/AuthContext";
 import { useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import PopupMessage from "../components/PopupMessage";
+import PopupMessage from "../../components/PopupMessage";
 
 export default function RegisterScreen() {
   const { register } = useAuth();

@@ -7,24 +7,25 @@ import {
   ActivityIndicator,
   StyleSheet,
   Dimensions,
-  SafeAreaView,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
 import { useAuth } from "../../contexts/AuthContext";
 import { Redirect } from "expo-router";
 import MapView, { Marker, Polyline } from "react-native-maps";
-import { BUSES, MOCK_STOPS, MOCK_BUSES } from "../services/busServer.mock"; // Keep for fallback
+import { BUSES, MOCK_STOPS, MOCK_BUSES } from "../../services/busServer.mock"; // Keep for fallback
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import { calculateETA, calculateETASmart, formatETA, haversineDistance } from "../helpers/eta";
-import { StopMarker } from "../components/StopMarker";
-import { generateBusColors } from "../helpers/busColor";
-import { useAddress } from "../hooks/useAddress";
+import { calculateETA, calculateETASmart, formatETA, haversineDistance } from "../../helpers/eta";
+import { StopMarker } from "../../components/StopMarker";
+import { generateBusColors } from "../../helpers/busColor";
+import { useAddress } from "../../hooks/useAddress";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 // const API_URL = process.env.EXPO_PUBLIC_API_URL;
 import Constants from "expo-constants";
-import { AddressDisplay } from "../components/AddressDisplay";
-import { NearestStopAddress } from "../components/NearestStopAddress";
+import { AddressDisplay } from "../../components/AddressDisplay";
+import { NearestStopAddress } from "../../components/NearestStopAddress";
 
 const API_BASE_URL = Constants.expoConfig?.extra?.apiUrl as string;
 // Your Laravel API configuration - UPDATE THIS!
@@ -56,7 +57,7 @@ export default function DashboardScreen() {
   const fetchBusList = useCallback(async () => {
     try {
       setApiError(null);
-      console.log("Fetching bus list from:", `${API_BASE_URL}/api/buses`);
+      // console.log("Fetching bus list from:", `${API_BASE_URL}/api/buses`);
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT);
@@ -76,7 +77,7 @@ export default function DashboardScreen() {
       }
 
       const data = await response.json();
-      console.log("Bus list response:", data);
+      // console.log("Bus list response:", data);
 
       // Your controller returns the data directly as array
       let busesArray: any[] = [];
@@ -108,11 +109,11 @@ export default function DashboardScreen() {
         }
       }
     } catch (error: any) {
-      console.error("Error fetching bus list from API:", error);
+      // console.error("Error fetching bus list from API:", error);
       setApiError(`Failed to load buses: ${error.message}`);
 
       // Fallback to mock data
-      console.log("Using mock data as fallback");
+      // console.log("Using mock data as fallback");
       setAllBuses(
         BUSES.map((bus) => ({
           id: bus.id,
@@ -170,7 +171,7 @@ export default function DashboardScreen() {
         setStops(MOCK_STOPS);
       }
     } catch (error) {
-      console.error("Error fetching stops:", error);
+      // console.error("Error fetching stops:", error);
       setStops(MOCK_STOPS);
     }
   }, []);
@@ -185,7 +186,7 @@ export default function DashboardScreen() {
         setLoadingBuses((prev) => ({ ...prev, [busId]: true }));
         setApiError(null);
 
-        console.log(`Fetching tracking data for bus ${busId} from API`);
+        // console.log(`Fetching tracking data for bus ${busId} from API`);
 
         // Try Laravel API endpoint first - using your /tracking endpoint
         const response = await fetch(
@@ -203,11 +204,11 @@ export default function DashboardScreen() {
 
         if (response.ok) {
           const data = await response.json();
-          console.log(
-            `RAW API response for bus ${busId}:`,
-            JSON.stringify(data, null, 2)
-          );
-          console.log(`API response for bus ${busId}:`, data);
+          // console.log(
+          //   `RAW API response for bus ${busId}:`,
+          //   JSON.stringify(data, null, 2)
+          // );
+          // console.log(`API response for bus ${busId}:`, data);
 
           // Your controller returns {success, data, message} format
           if (data.success && data.data) {
@@ -290,21 +291,21 @@ export default function DashboardScreen() {
           message: "Data loaded successfully",
         };
 
-        console.log(`Processed bus ${busId}:`, {
-          id: processedBus.id,
-          pathTravelledCount: processedBus.pathTravelled.length,
-          currentPosition: processedBus.currentPosition,
-          lastUpdated: processedBus.lastUpdated,
-          hasCurrentPositionFromApi: !!busData.current_position,
-          usedLastPathPoint:
-            !busData.current_position && pathTravelled.length > 0,
-        });
+        // console.log(`Processed bus ${busId}:`, {
+        //   id: processedBus.id,
+        //   pathTravelledCount: processedBus.pathTravelled.length,
+        //   currentPosition: processedBus.currentPosition,
+        //   lastUpdated: processedBus.lastUpdated,
+        //   hasCurrentPositionFromApi: !!busData.current_position,
+        //   usedLastPathPoint:
+        //     !busData.current_position && pathTravelled.length > 0,
+        // });
         setActiveBuses((prev) => ({
           ...prev,
           [busId]: processedBus,
         }));
       } catch (error) {
-        console.error(`Error fetching API data for bus ${busId}:`, error);
+        // console.error(`Error fetching API data for bus ${busId}:`, error);
 
         // Fallback to mock data
         const mockBusData = MOCK_BUSES.find((bus) => bus.id === busId);
@@ -495,19 +496,19 @@ export default function DashboardScreen() {
   // const isLoading = activeBusId && loadingBuses[activeBusId];
 
   // Calculate ETA if bus is active
-  let nearestStop = null;
+  let nearestStop:any = null;
   let etaToNextStop = "N/A";
 
   if (activeBus && activeBus.isActive && stops.length > 0) {
     const { lat, long, speed } = activeBus.currentPosition || {};
 
-    console.log("DEBUG - Current position data:", {
-      lat,
-      long,
-      speed,
-      hasSpeed: !!speed,
-      speedType: typeof speed,
-    });
+    // console.log("DEBUG - Current position data:", {
+    //   lat,
+    //   long,
+    //   speed,
+    //   hasSpeed: !!speed,
+    //   speedType: typeof speed,
+    // });
 
     if (lat && long) {
       let minDist = Infinity;
@@ -520,39 +521,39 @@ export default function DashboardScreen() {
         }
       });
 
-      console.log("DEBUG - Distance calculation:", {
-        nearestStop: nearestStop?.name,
-        distanceKm: minDist,
-        distanceMeters: minDist * 1000,
-      });
+      // console.log("DEBUG - Distance calculation:", {
+      //   nearestStop: nearestStop?.name,
+      //   distanceKm: minDist,
+      //   distanceMeters: minDist * 1000,
+      // });
 
-      if (speed) {
-        console.log("DEBUG - Speed analysis:", {
-          rawSpeed: speed,
-          ifKmh: `${speed} km/h`,
-          ifMs: `${speed} m/s = ${speed * 3.6} km/h`,
-          // More detailed analysis:
-          likelyKmh: speed >= 1 && speed <= 120, // Typical vehicle speed range in km/h
-          likelyMs: speed >= 0.3 && speed <= 33, // 0.3 m/s = 1 km/h, 33 m/s = 120 km/h
-          suggestedUnit: speed < 30 ? "possibly m/s" : "possibly km/h",
-        });
-      }
+      // if (speed) {
+      //   console.log("DEBUG - Speed analysis:", {
+      //     rawSpeed: speed,
+      //     ifKmh: `${speed} km/h`,
+      //     ifMs: `${speed} m/s = ${speed * 3.6} km/h`,
+      //     // More detailed analysis:
+      //     likelyKmh: speed >= 1 && speed <= 120, // Typical vehicle speed range in km/h
+      //     likelyMs: speed >= 0.3 && speed <= 33, // 0.3 m/s = 1 km/h, 33 m/s = 120 km/h
+      //     suggestedUnit: speed < 30 ? "possibly m/s" : "possibly km/h",
+      //   });
+      // }
 
       // IMPORTANT FIX: API returns speed in km/h, not m/s
       // Remove the * 3.6 conversion in calculateETA
       etaToNextStop = calculateETASmart(minDist, speed);
 
-      console.log("DEBUG - Final ETA:", etaToNextStop);
+      // console.log("DEBUG - Final ETA:", etaToNextStop);
 
       // Add a verification calculation
       if (speed && minDist > 0) {
         const expectedMinutesKmh = (minDist / speed) * 60;
         const expectedMinutesMs = (minDist / (speed * 3.6)) * 60;
-        console.log("VERIFICATION:", {
-          "If speed is km/h": `${expectedMinutesKmh.toFixed(1)} min`,
-          "If speed is m/s": `${expectedMinutesMs.toFixed(1)} min`,
-          "Your result": etaToNextStop,
-        });
+        // console.log("VERIFICATION:", {
+        //   "If speed is km/h": `${expectedMinutesKmh.toFixed(1)} min`,
+        //   "If speed is m/s": `${expectedMinutesMs.toFixed(1)} min`,
+        //   "Your result": etaToNextStop,
+        // });
       }
     }
   }

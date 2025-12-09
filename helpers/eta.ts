@@ -40,7 +40,7 @@ export function calculateETA(distanceKm: number, speedKmh: number) {
 
 // Alternative: Version that automatically detects unit
 export function calculateETASmart(distanceKm: number, speed: number) {
-  console.log(`[SMART ETA] distance: ${distanceKm.toFixed(4)}km, speed: ${speed}`);
+  // console.log(`[SMART ETA] distance: ${distanceKm.toFixed(4)}km, speed: ${speed}`);
   
   if (!speed || speed <= 0) return "Not moving";
   
@@ -54,21 +54,21 @@ export function calculateETASmart(distanceKm: number, speed: number) {
     if (distanceKm < 0.5 && speed < 10) {
       // Short distance + low speed = likely km/h (walking/bus in traffic)
       speedKmh = speed;
-      console.log(`[SMART ETA] Assuming ${speed} km/h (slow traffic)`);
+      // console.log(`[SMART ETA] Assuming ${speed} km/h (slow traffic)`);
     } else {
       // Try as m/s first (common for GPS raw data)
       speedKmh = speed * 3.6;
-      console.log(`[SMART ETA] Assuming ${speed} m/s = ${speedKmh} km/h`);
+      // console.log(`[SMART ETA] Assuming ${speed} m/s = ${speedKmh} km/h`);
     }
   } else {
     // > 30 is almost certainly km/h (30 m/s = 108 km/h is too specific)
     speedKmh = speed;
-    console.log(`[SMART ETA] Assuming ${speed} km/h`);
+    // console.log(`[SMART ETA] Assuming ${speed} km/h`);
   }
   
   const hours = distanceKm / speedKmh;
   const minutes = hours * 60;
   
-  console.log(`[SMART ETA] Result: ${minutes.toFixed(1)} minutes`);
+  // console.log(`[SMART ETA] Result: ${minutes.toFixed(1)} minutes`);
   return formatETA(minutes);
 }

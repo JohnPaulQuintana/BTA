@@ -93,6 +93,10 @@ export default function LoginScreen() {
             </TouchableOpacity>
           </View>
 
+          <Pressable onPress={() => router.push("/(auth)/ForgotPassword")} style={styles.forgotRow}>
+            <Text style={styles.forgotText}>Forgot Password</Text>
+          </Pressable>
+
           {/* Login Button */}
           <Pressable
             onPress={handleLogin}
@@ -230,6 +234,16 @@ const styles = StyleSheet.create({
   registerText: {
     color: "#22c55e",
     textAlign: "center",
+    textDecorationLine: "underline",
+    fontSize: 15,
+  },
+  forgotRow: {
+    marginTop: -10,
+    marginBottom: 18
+  },
+  forgotText: {
+    color: "#22c55e",
+    textAlign: "right",
     textDecorationLine: "underline",
     fontSize: 15,
   },
