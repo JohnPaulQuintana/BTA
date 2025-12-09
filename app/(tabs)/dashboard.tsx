@@ -15,7 +15,7 @@ import MapView, { Marker, Polyline } from "react-native-maps";
 import { BUSES, MOCK_STOPS, MOCK_BUSES } from "../services/busServer.mock"; // Keep for fallback
 import { Ionicons } from "@expo/vector-icons";
 import React from "react";
-import { calculateETA, formatETA, haversineDistance } from "../helpers/eta";
+import { calculateETA, calculateETASmart, formatETA, haversineDistance } from "../helpers/eta";
 import { StopMarker } from "../components/StopMarker";
 import { generateBusColors } from "../helpers/busColor";
 import { useAddress } from "../hooks/useAddress";
@@ -497,27 +497,65 @@ export default function DashboardScreen() {
   // Calculate ETA if bus is active
   let nearestStop = null;
   let etaToNextStop = "N/A";
-  // let nearestStopAddress = "N/A"
 
-if (activeBus && activeBus.isActive && stops.length > 0) {
-  const { lat, long, speed } = activeBus.currentPosition || {};
+  if (activeBus && activeBus.isActive && stops.length > 0) {
+    const { lat, long, speed } = activeBus.currentPosition || {};
 
-  if (lat && long) {
-    let minDist = Infinity;
-
-    stops.forEach((stop) => {
-      const dist = haversineDistance(lat, long, stop.lat, stop.long);
-      if (dist < minDist) {
-        minDist = dist;
-        nearestStop = stop;
-      }
+    console.log("DEBUG - Current position data:", {
+      lat,
+      long,
+      speed,
+      hasSpeed: !!speed,
+      speedType: typeof speed,
     });
 
-    etaToNextStop = calculateETA(minDist, speed);
+    if (lat && long) {
+      let minDist = Infinity;
+
+      stops.forEach((stop) => {
+        const dist = haversineDistance(lat, long, stop.lat, stop.long);
+        if (dist < minDist) {
+          minDist = dist;
+          nearestStop = stop;
+        }
+      });
+
+      console.log("DEBUG - Distance calculation:", {
+        nearestStop: nearestStop?.name,
+        distanceKm: minDist,
+        distanceMeters: minDist * 1000,
+      });
+
+      if (speed) {
+        console.log("DEBUG - Speed analysis:", {
+          rawSpeed: speed,
+          ifKmh: `${speed} km/h`,
+          ifMs: `${speed} m/s = ${speed * 3.6} km/h`,
+          // More detailed analysis:
+          likelyKmh: speed >= 1 && speed <= 120, // Typical vehicle speed range in km/h
+          likelyMs: speed >= 0.3 && speed <= 33, // 0.3 m/s = 1 km/h, 33 m/s = 120 km/h
+          suggestedUnit: speed < 30 ? "possibly m/s" : "possibly km/h",
+        });
+      }
+
+      // IMPORTANT FIX: API returns speed in km/h, not m/s
+      // Remove the * 3.6 conversion in calculateETA
+      etaToNextStop = calculateETASmart(minDist, speed);
+
+      console.log("DEBUG - Final ETA:", etaToNextStop);
+
+      // Add a verification calculation
+      if (speed && minDist > 0) {
+        const expectedMinutesKmh = (minDist / speed) * 60;
+        const expectedMinutesMs = (minDist / (speed * 3.6)) * 60;
+        console.log("VERIFICATION:", {
+          "If speed is km/h": `${expectedMinutesKmh.toFixed(1)} min`,
+          "If speed is m/s": `${expectedMinutesMs.toFixed(1)} min`,
+          "Your result": etaToNextStop,
+        });
+      }
+    }
   }
-}
-
-
 
   const initialRegion = {
     latitude: 14.683015,
